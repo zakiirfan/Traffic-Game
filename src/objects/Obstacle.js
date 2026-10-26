@@ -22,6 +22,7 @@ export class Obstacle extends Phaser.GameObjects.Container {
     this.w = spec.width;
     this.h = spec.height;
     this.ownSpeed = spec.ownSpeed ?? 0;
+    this.baseOwnSpeed = this.ownSpeed;
     this.cfg = CONFIG.obstacles[spec.type];
     this.isVehicle = false;
     this.setDepth(10);

@@ -3,6 +3,8 @@ import { CONFIG, laneX } from '../data/config.js';
 import { TEXT_STYLE } from '../ui/Button.js';
 import Player from '../objects/Player.js';
 import { createObstacle, DEATH_CAUSE } from '../objects/Obstacle.js';
+import TrafficLight from '../objects/TrafficLight.js';
+import EtleCamera from '../objects/EtleCamera.js';
 import { cruiseSpeed, getPhase } from '../systems/Difficulty.js';
 import { Spawner } from '../systems/Spawner.js';
 
@@ -49,6 +51,12 @@ export default class GameScene extends Phaser.Scene {
     this.spawner = new Spawner();
     this.metersSinceSpawn = 0;
 
+    this.light = null;
+    this.nextLightAt = CONFIG.trafficLight.firstAtSeconds;
+    this.etles = [];
+    this.nextEtleAt = CONFIG.etle.firstAtMeters;
+    this.counters = { lightsObeyed: 0, lightsRan: 0, etle: 0, helmetSaves: 0 };
+
     this.setupInput();
     this.createHud();
   }
@@ -91,6 +99,15 @@ export default class GameScene extends Phaser.Scene {
     this.hudInfo = this.add
       .text(12, 40, '', { ...TEXT_STYLE, fontSize: '14px', stroke: '#000', strokeThickness: 3 })
       .setDepth(100);
+
+    // Penanda lampu merah di depan saat perempatan belum masuk layar.
+    const W = CONFIG.width;
+    this.hudLight = this.add.container(W / 2, 26).setDepth(100).setVisible(false);
+    this.hudLight.add(this.add.rectangle(0, 0, 150, 30, 0x111111, 0.85).setStrokeStyle(2, 0xff3030));
+    this.hudLight.add(this.add.circle(-56, 0, 8, 0xff2a2a));
+    this.hudLight.add(
+      this.add.text(8, 0, 'LAMPU MERAH ▲', { ...TEXT_STYLE, fontSize: '13px', fontStyle: 'bold' }).setOrigin(0.5),
+    );
   }
 
   readControls() {
@@ -123,17 +140,109 @@ export default class GameScene extends Phaser.Scene {
     const dm = dy / CONFIG.pxPerMeter;
     this.distanceMeters += dm;
 
+    this.updateLight(dt, cruise);
+    if (this.isOver) return;
+    this.updateEtle(dt);
     this.updateSpawning(dm, cruise);
     this.updateObstacles(dt);
     this.checkCollisions();
     if (this.isOver) return;
 
     this.hudScore.setText(`${Math.floor(this.distanceMeters)} m`);
-    this.hudInfo.setText(`${Math.round((p.speed / CONFIG.pxPerMeter) * 3.6)} km/j`);
+    const helm = p.helmet ? 'Helm: aman' : p.helmetCracked ? 'Helm: retak' : 'Tanpa helm';
+    this.hudInfo.setText(`${Math.round((p.speed / CONFIG.pxPerMeter) * 3.6)} km/j · ${helm}`);
+    this.hudLight.setVisible(!!this.light && this.light.state === 'red' && this.light.lineY < 10);
   }
 
+  // Spawner berhenti sebentar sebelum perempatan muncul sampai pemain melewatinya, supaya
+  // berhenti di lampu merah selalu aman.
   spawnPaused() {
-    return false;
+    const lp = CONFIG.trafficLight;
+    if (this.elapsed >= this.nextLightAt - lp.spawnPauseBeforeSeconds) return true;
+    return !!this.light && this.light.lineY < this.player.y + lp.spawnResumeAfterMeters * CONFIG.pxPerMeter;
+  }
+
+  updateLight(dt, cruise) {
+    const lp = CONFIG.trafficLight;
+    const p = this.player;
+    const now = this.time.now;
+    if (!this.light && this.elapsed >= this.nextLightAt) {
+      // Garis stop ditempatkan sejauh visibleSecondsBeforeLine dari motor pada kecepatan jelajah.
+      const y = p.top - lp.visibleSecondsBeforeLine * cruise;
+      this.light = new TrafficLight(this, y, Math.random() < lp.policeChance);
+      this.nextLightAt = this.elapsed + lp.intervalSeconds + Phaser.Math.FloatBetween(-lp.jitterSeconds, lp.jitterSeconds);
+    }
+    const light = this.light;
+    if (!light) return;
+
+    light.step(dt, p.speed, now);
+    if (!light.resolved) {
+      if (light.state === 'red') {
+        if (p.top < light.lineY) {
+          light.resolved = true;
+          this.ranRedLight(light);
+        } else if (p.speed < 1 && light.lineY > 0) {
+          light.startCountdown(now);
+        }
+      } else {
+        light.resolved = true;
+        this.obeyedRedLight();
+      }
+    }
+    if (light.isGone()) {
+      light.destroy();
+      this.light = null;
+    }
+  }
+
+  obeyedRedLight() {
+    this.counters.lightsObeyed++;
+    this.floatText(this.player.x, this.player.y - 50, '+30 TERTIB', '#7dff9a');
+  }
+
+  // Nerobos lampu merah: tidak ada poin. Kalau ada polisi di pos, langsung ditilang.
+  ranRedLight(light) {
+    this.counters.lightsRan++;
+    if (light.hasPolice) {
+      this.floatText(CONFIG.width / 2, this.player.y - 60, 'KENA TILANG!', '#ff6b6b');
+      this.gameOver('tilang');
+      return;
+    }
+    this.floatText(this.player.x, this.player.y - 50, 'NEROBOS! 0 poin', '#ff6b6b');
+  }
+
+  updateEtle(dt) {
+    const p = this.player;
+    if (this.distanceMeters >= this.nextEtleAt) {
+      // Jangan menumpuk dengan perempatan.
+      const nearLight = this.light && this.light.lineY > -400;
+      if (nearLight || this.elapsed >= this.nextLightAt - 1) {
+        this.nextEtleAt += 40;
+      } else {
+        this.etles.push(new EtleCamera(this, -60));
+        this.nextEtleAt += CONFIG.etle.everyMeters;
+      }
+    }
+    for (const cam of this.etles) {
+      cam.step(dt, p.speed);
+      if (!cam.triggered && cam.y >= p.y) {
+        cam.triggered = true;
+        if (p.lane === CONFIG.road.buswayLane) this.caughtByEtle();
+      }
+    }
+    this.etles = this.etles.filter((cam) => {
+      if (cam.isGone()) {
+        cam.destroy();
+        return false;
+      }
+      return true;
+    });
+  }
+
+  caughtByEtle() {
+    this.counters.etle++;
+    this.cameras.main.flash(220, 255, 255, 255);
+    this.floatText(CONFIG.width / 2, CONFIG.height / 2, 'TERTANGKAP ETLE  −20', '#ffd166', '26px');
   }
 
   updateSpawning(dm, cruise) {
@@ -147,7 +256,13 @@ export default class GameScene extends Phaser.Scene {
       playerSpeed: cruise,
       activeStates: this.obstacles.map((o) => o.toState()),
     });
-    for (const spec of specs) this.obstacles.push(createObstacle(this, spec));
+    for (const spec of specs) this.spawnObstacle(spec);
+  }
+
+  spawnObstacle(spec) {
+    const o = createObstacle(this, spec);
+    this.obstacles.push(o);
+    return o;
   }
 
   updateObstacles(dt) {
@@ -176,15 +291,23 @@ export default class GameScene extends Phaser.Scene {
     });
   }
 
-  // Kendaraan searah yang menyusul kendaraan lain di lajur yang sama ikut melambat (tidak tembus).
+  // Kendaraan searah tidak saling tembus (yang di belakang ikut melambat) dan berhenti di garis
+  // stop saat lampu merah.
   keepNpcSpacing() {
-    const vehicles = this.obstacles.filter((o) => o.isVehicle && o.ownSpeed > 0);
-    for (const back of vehicles) {
+    const light = this.light && this.light.state === 'red' ? this.light : null;
+    for (const back of this.obstacles) {
+      if (!back.isVehicle || back.baseOwnSpeed <= 0 || back.braking) continue;
+      let limit = back.baseOwnSpeed;
       for (const front of this.obstacles) {
         if (front === back || !front.isVehicle || front.lane !== back.lane || front.y >= back.y) continue;
         const gap = back.y - back.h / 2 - (front.y + front.h / 2);
-        if (gap < 16) back.ownSpeed = Math.min(back.ownSpeed, Math.max(0, front.ownSpeed));
+        if (gap < 16) limit = Math.min(limit, Math.max(0, front.ownSpeed));
       }
+      if (light) {
+        const toLine = back.y - back.h / 2 - light.lineY;
+        if (toLine >= 0 && toLine < 24) limit = 0;
+      }
+      back.ownSpeed = limit;
     }
   }
 
@@ -198,12 +321,21 @@ export default class GameScene extends Phaser.Scene {
         return;
       }
     }
+    if (this.light) {
+      for (const box of this.light.getCrossHitboxes()) {
+        if (overlaps(hb, box)) {
+          this.handleCrash('perempatan', null);
+          return;
+        }
+      }
+    }
   }
 
   // Tabrakan: helm menyelamatkan satu kali, selain itu game over.
   handleCrash(cause, obstacle) {
     const p = this.player;
     if (p.helmet) {
+      this.counters.helmetSaves++;
       p.crackHelmet(this.time.now);
       this.cameras.main.shake(180, 0.01);
       this.floatText(p.x, p.y - 40, 'HELM RETAK!', '#ffffff');
@@ -228,13 +360,14 @@ export default class GameScene extends Phaser.Scene {
         helmet: this.helmetChoice,
         seconds: Math.floor(this.elapsed),
         distance: Math.floor(this.distanceMeters),
+        ...this.counters,
       });
     });
   }
 
-  floatText(x, y, msg, color = '#ffffff') {
+  floatText(x, y, msg, color = '#ffffff', fontSize = '18px') {
     const t = this.add
-      .text(x, y, msg, { ...TEXT_STYLE, fontSize: '18px', fontStyle: 'bold', color, stroke: '#000', strokeThickness: 4 })
+      .text(x, y, msg, { ...TEXT_STYLE, fontSize, fontStyle: 'bold', color, stroke: '#000', strokeThickness: 4 })
       .setOrigin(0.5)
       .setDepth(110);
     this.tweens.add({ targets: t, y: y - 50, alpha: 0, duration: 1100, onComplete: () => t.destroy() });
