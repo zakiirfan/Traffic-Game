@@ -17,6 +17,14 @@ npm run build     # hasil build statis di folder dist/
 npm run preview   # mencoba hasil build secara lokal
 ```
 
+### Deploy
+
+Setiap push ke `main` otomatis menjalankan test, build, lalu deploy ke GitHub Pages lewat
+[`.github/workflows/deploy.yml`](.github/workflows/deploy.yml). Hasilnya ada di
+`https://zakiirfan.github.io/Traffic-Game/`. Pengaturan sekali saja: di repo GitHub buka
+Settings → Pages → Build and deployment → Source: **GitHub Actions**. Deploy manual bisa
+dijalankan dari tab Actions → "Deploy ke GitHub Pages" → Run workflow.
+
 Folder `dist/` memakai path relatif (`base: './'`), jadi bisa langsung di-upload ke itch.io
 (zip isi `dist/`, jenis proyek HTML) atau GitHub Pages (subfolder apa pun).
 
