@@ -1,0 +1,38 @@
+{
+  "angkot": [
+    "Dicium angkot lagi",
+    "Angkotnya ngerem, kamu nggak",
+    "Lampu rem angkot itu bukan hiasan"
+  ],
+  "ojol": [
+    "Sein ojolnya udah kedip, lho",
+    "Pindah lajur bareng ojol, nggak janjian"
+  ],
+  "pejalan_kaki": [
+    "Ada yang nyeberang, kamu ngebut",
+    "Pejalan kaki juga mau sampai rumah"
+  ],
+  "lubang": [
+    "Lubang jalan menang lagi",
+    "Lubangnya kelihatan dari jauh, lho"
+  ],
+  "lawan_arus": [
+    "Ketemu motor lawan arus",
+    "Yang salah arah dia, yang kena kamu"
+  ],
+  "bus": [
+    "Busway bukan jalan pintas",
+    "Adu banteng sama bus? Kalah telak"
+  ],
+  "tilang": [
+    "Kena tilang di detik ke-{detik}",
+    "Pak polisi lihat semuanya"
+  ],
+  "perempatan": [
+    "Nerobos merah, disambut dari samping",
+    "Lampu merah itu bukan saran"
+  ],
+  "umum": [
+    "Perjalanan berakhir di detik ke-{detik}"
+  ]
+}

@@ -1,0 +1,72 @@
+[
+  {
+    "id": "umum-jasaraharja-pelanggaran",
+    "trigger": "umum",
+    "text": "Menurut Jasa Raharja, 82% korban kecelakaan yang mereka santuni disebabkan pelanggaran lalu lintas.",
+    "source": "Jasa Raharja via Republika, Feb 2025",
+    "verified": true
+  },
+  {
+    "id": "lawan-arus-etle-zebra-2025",
+    "trigger": "lawan_arus",
+    "text": "Melawan arus adalah pelanggaran yang paling banyak terekam ETLE di hari pertama Operasi Zebra 2025 di Jakarta Timur.",
+    "source": "Kompas TV, Nov 2025",
+    "verified": true
+  },
+  {
+    "id": "angkot-jaga-jarak",
+    "trigger": "angkot",
+    "text": "[PERLU VERIFIKASI] Menjaga jarak dari kendaraan di depan memberi waktu untuk bereaksi saat kendaraan itu mengerem mendadak.",
+    "source": "Belum ada sumber",
+    "verified": false
+  },
+  {
+    "id": "ojol-sein",
+    "trigger": "ojol",
+    "text": "[PERLU VERIFIKASI] Memperhatikan lampu sein kendaraan lain membantu mengantisipasi perpindahan lajur.",
+    "source": "Belum ada sumber",
+    "verified": false
+  },
+  {
+    "id": "pejalan-kaki-prioritas",
+    "trigger": "pejalan_kaki",
+    "text": "[PERLU VERIFIKASI] Pengemudi wajib mendahulukan pejalan kaki yang menyeberang di tempat penyeberangan.",
+    "source": "Belum ada sumber (cek UU No. 22 Tahun 2009 tentang LLAJ)",
+    "verified": false
+  },
+  {
+    "id": "lubang-jalan-lapor",
+    "trigger": "lubang",
+    "text": "[PERLU VERIFIKASI] Jalan berlubang bisa dilaporkan ke pengelola jalan supaya segera diperbaiki.",
+    "source": "Belum ada sumber",
+    "verified": false
+  },
+  {
+    "id": "bus-jalur-khusus",
+    "trigger": "bus",
+    "text": "[PERLU VERIFIKASI] Jalur bus khusus hanya untuk bus; kendaraan lain yang masuk bisa terekam kamera tilang elektronik.",
+    "source": "Belum ada sumber",
+    "verified": false
+  },
+  {
+    "id": "tilang-lampu-merah",
+    "trigger": "tilang",
+    "text": "[PERLU VERIFIKASI] Menerobos lampu merah termasuk pelanggaran yang bisa dikenai sanksi tilang.",
+    "source": "Belum ada sumber (cek UU No. 22 Tahun 2009 tentang LLAJ)",
+    "verified": false
+  },
+  {
+    "id": "perempatan-lampu-merah",
+    "trigger": "perempatan",
+    "text": "[PERLU VERIFIKASI] Perempatan adalah titik rawan tabrakan samping; lampu merah memberi giliran jalan bagi arah lain.",
+    "source": "Belum ada sumber",
+    "verified": false
+  },
+  {
+    "id": "umum-helm-sni",
+    "trigger": "umum",
+    "text": "[PERLU VERIFIKASI] Helm berstandar SNI yang dikancingkan dengan benar melindungi kepala saat terjadi benturan.",
+    "source": "Belum ada sumber",
+    "verified": false
+  }
+]
