@@ -4,6 +4,8 @@ import CAPTIONS from '../data/captions.json';
 import { makeButton, TEXT_STYLE } from '../ui/Button.js';
 import { pickCaption, pickFact } from '../systems/Facts.js';
 import { loadJSON, saveJSON } from '../systems/Storage.js';
+import { shareScore } from '../systems/Share.js';
+import { track } from '../systems/analytics.js';
 
 export default class GameOverScene extends Phaser.Scene {
   constructor() {
@@ -115,5 +117,29 @@ export default class GameOverScene extends Phaser.Scene {
     this.scene.start('GameScene', { helmet: this.result.helmet });
   }
 
-  share() {}
+  async share() {
+    const outcome = await shareScore({ ...this.result, caption: this.caption });
+    track('share', { outcome, score: this.result.score });
+    const msg = {
+      shared: 'Terima kasih sudah berbagi!',
+      downloaded: 'Kartu skor diunduh (PNG)',
+      cancelled: 'Batal berbagi',
+      failed: 'Gagal membuat kartu skor',
+    }[outcome];
+    this.toast(msg);
+  }
+
+  toast(msg) {
+    this.toastText?.destroy();
+    this.toastText = this.add
+      .text(CONFIG.width / 2, 540 - 4, msg, {
+        ...TEXT_STYLE,
+        fontSize: '14px',
+        backgroundColor: '#000000cc',
+        padding: { x: 10, y: 6 },
+      })
+      .setOrigin(0.5)
+      .setDepth(50);
+    this.tweens.add({ targets: this.toastText, alpha: 0, delay: 1600, duration: 400 });
+  }
 }

@@ -8,6 +8,8 @@ import EtleCamera from '../objects/EtleCamera.js';
 import { cruiseSpeed, getPhase } from '../systems/Difficulty.js';
 import { Spawner } from '../systems/Spawner.js';
 import { Scoring } from '../systems/Scoring.js';
+import { saveRound } from '../systems/Stats.js';
+import { track } from '../systems/analytics.js';
 
 function overlaps(a, b) {
   return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
@@ -61,6 +63,7 @@ export default class GameScene extends Phaser.Scene {
 
     this.setupInput();
     this.createHud();
+    track('round_start', { helmet: this.helmetChoice });
   }
 
   setupInput() {
@@ -252,12 +255,14 @@ export default class GameScene extends Phaser.Scene {
 
   obeyedRedLight() {
     this.counters.lightsObeyed++;
+    track('red_light', { obeyed: true, second: Math.floor(this.elapsed) });
     this.showTertib(this.scoring.obeyRedLight(), 'TERTIB');
   }
 
   // Nerobos lampu merah: tidak ada poin. Kalau ada polisi di pos, langsung ditilang.
   ranRedLight(light) {
     this.counters.lightsRan++;
+    track('red_light', { obeyed: false, police: light.hasPolice, second: Math.floor(this.elapsed) });
     if (light.hasPolice) {
       this.floatText(CONFIG.width / 2, this.player.y - 60, 'KENA TILANG!', '#ff6b6b');
       this.gameOver('tilang');
@@ -296,6 +301,7 @@ export default class GameScene extends Phaser.Scene {
 
   caughtByEtle() {
     this.counters.etle++;
+    track('etle_violation', { second: Math.floor(this.elapsed) });
     this.scoring.etleViolation();
     this.cameras.main.flash(220, 255, 255, 255);
     this.floatText(CONFIG.width / 2, CONFIG.height / 2, `TERTANGKAP ETLE  −${CONFIG.scoring.etlePenalty}`, '#ffd166', '26px');
@@ -392,6 +398,7 @@ export default class GameScene extends Phaser.Scene {
     const p = this.player;
     if (p.helmet) {
       this.counters.helmetSaves++;
+      track('helmet_save', { cause, second: Math.floor(this.elapsed) });
       p.crackHelmet(this.time.now);
       this.cameras.main.shake(180, 0.01);
       this.floatText(p.x, p.y - 40, 'HELM RETAK!', '#ffffff');
@@ -410,17 +417,18 @@ export default class GameScene extends Phaser.Scene {
     this.player.setBraking(false);
     this.cameras.main.shake(250, 0.015);
     this.cameras.main.flash(150, 255, 60, 60);
-    this.time.delayedCall(650, () => {
-      this.scene.start('GameOverScene', {
-        cause,
-        helmet: this.helmetChoice,
-        seconds: Math.floor(this.elapsed),
-        distance: Math.floor(this.distanceMeters),
-        score: this.scoring.total,
-        tertib: this.scoring.tertib,
-        ...this.counters,
-      });
-    });
+    const result = {
+      cause,
+      helmet: this.helmetChoice,
+      seconds: Math.floor(this.elapsed),
+      distance: Math.floor(this.distanceMeters),
+      score: this.scoring.total,
+      tertib: this.scoring.tertib,
+      ...this.counters,
+    };
+    saveRound(result);
+    track('game_over', result);
+    this.time.delayedCall(650, () => this.scene.start('GameOverScene', result));
   }
 
   floatText(x, y, msg, color = '#ffffff', fontSize = '18px') {
