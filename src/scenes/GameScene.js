@@ -7,6 +7,7 @@ import TrafficLight from '../objects/TrafficLight.js';
 import EtleCamera from '../objects/EtleCamera.js';
 import { cruiseSpeed, getPhase } from '../systems/Difficulty.js';
 import { Spawner } from '../systems/Spawner.js';
+import { Scoring } from '../systems/Scoring.js';
 
 function overlaps(a, b) {
   return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
@@ -56,6 +57,7 @@ export default class GameScene extends Phaser.Scene {
     this.etles = [];
     this.nextEtleAt = CONFIG.etle.firstAtMeters;
     this.counters = { lightsObeyed: 0, lightsRan: 0, etle: 0, helmetSaves: 0 };
+    this.scoring = new Scoring();
 
     this.setupInput();
     this.createHud();
@@ -97,8 +99,21 @@ export default class GameScene extends Phaser.Scene {
       .text(12, 10, '', { ...TEXT_STYLE, fontSize: '22px', fontStyle: 'bold', stroke: '#000', strokeThickness: 4 })
       .setDepth(100);
     this.hudInfo = this.add
-      .text(12, 40, '', { ...TEXT_STYLE, fontSize: '14px', stroke: '#000', strokeThickness: 3 })
+      .text(12, 40, '', { ...TEXT_STYLE, fontSize: '13px', stroke: '#000', strokeThickness: 3 })
       .setDepth(100);
+    this.hudTertib = this.add
+      .text(12, 60, '', { ...TEXT_STYLE, fontSize: '13px', color: '#7dff9a', stroke: '#000', strokeThickness: 3 })
+      .setDepth(100);
+
+    // Meteran bonus (kanan atas). Penuh = pengali x2.
+    const W0 = CONFIG.width;
+    this.hudBonusLabel = this.add
+      .text(W0 - 12, 10, 'BONUS', { ...TEXT_STYLE, fontSize: '12px', fontStyle: 'bold', stroke: '#000', strokeThickness: 3 })
+      .setOrigin(1, 0)
+      .setDepth(100);
+    this.hudBonusBg = this.add.rectangle(W0 - 12, 30, 110, 12, 0x000000, 0.6).setOrigin(1, 0).setDepth(100);
+    this.hudBonusBg.setStrokeStyle(1, 0xffffff, 0.6);
+    this.hudBonusFill = this.add.rectangle(W0 - 121, 31, 0, 10, 0x7dff9a).setOrigin(0, 0).setDepth(101);
 
     // Penanda lampu merah di depan saat perempatan belum masuk layar.
     const W = CONFIG.width;
@@ -139,6 +154,8 @@ export default class GameScene extends Phaser.Scene {
     this.scrollWorld(dy);
     const dm = dy / CONFIG.pxPerMeter;
     this.distanceMeters += dm;
+    this.scoring.update(dt);
+    this.scoring.addDistance(dm);
 
     this.updateLight(dt, cruise);
     if (this.isOver) return;
@@ -147,11 +164,49 @@ export default class GameScene extends Phaser.Scene {
     this.updateObstacles(dt);
     this.checkCollisions();
     if (this.isOver) return;
+    this.updateSafeDistance(dt);
+    this.updateHud();
+  }
 
-    this.hudScore.setText(`${Math.floor(this.distanceMeters)} m`);
+  updateHud() {
+    const p = this.player;
+    const sc = this.scoring;
+    this.hudScore.setText(`${sc.total}`);
     const helm = p.helmet ? 'Helm: aman' : p.helmetCracked ? 'Helm: retak' : 'Tanpa helm';
-    this.hudInfo.setText(`${Math.round((p.speed / CONFIG.pxPerMeter) * 3.6)} km/j · ${helm}`);
+    this.hudInfo.setText(`${Math.floor(this.distanceMeters)} m · ${Math.round((p.speed / CONFIG.pxPerMeter) * 3.6)} km/j · ${helm}`);
+    this.hudTertib.setText(`Poin tertib: ${sc.tertib}`);
+    if (sc.multiplierLeft > 0) {
+      this.hudBonusLabel.setText(`x${sc.multiplier}  ${sc.multiplierLeft.toFixed(1)} dtk`).setColor('#ffd166');
+      this.hudBonusFill.width = 108 * (sc.multiplierLeft / CONFIG.scoring.multiplierSeconds);
+      this.hudBonusFill.setFillStyle(0xffd166);
+    } else {
+      this.hudBonusLabel.setText('BONUS').setColor('#ffffff');
+      this.hudBonusFill.width = 108 * sc.bonusRatio;
+      this.hudBonusFill.setFillStyle(0x7dff9a);
+    }
     this.hudLight.setVisible(!!this.light && this.light.state === 'red' && this.light.lineY < 10);
+  }
+
+  // Jaga jarak aman: kendaraan terdekat di depan pada lajur yang sama.
+  updateSafeDistance(dt) {
+    const p = this.player;
+    let gap = null;
+    if (p.speed > 1) {
+      for (const o of this.obstacles) {
+        if (!o.isVehicle || o.lane !== p.lane || o.y >= p.y) continue;
+        const g = p.top - (o.y + o.h / 2);
+        if (g >= 0 && g <= CONFIG.scoring.safeDistanceLookaheadPx && (gap === null || g < gap)) gap = g;
+      }
+    }
+    const r = this.scoring.updateSafeDistance(dt, gap, CONFIG.player.height);
+    if (r) this.showTertib(r, 'JAGA JARAK');
+  }
+
+  showTertib(result, label) {
+    this.floatText(this.player.x, this.player.y - 50, `+${result.gained} ${label}`, '#7dff9a');
+    if (result.activated) {
+      this.floatText(CONFIG.width / 2, CONFIG.height * 0.4, `BONUS x${CONFIG.scoring.multiplier}!`, '#ffd166', '30px');
+    }
   }
 
   // Spawner berhenti sebentar sebelum perempatan muncul sampai pemain melewatinya, supaya
@@ -197,7 +252,7 @@ export default class GameScene extends Phaser.Scene {
 
   obeyedRedLight() {
     this.counters.lightsObeyed++;
-    this.floatText(this.player.x, this.player.y - 50, '+30 TERTIB', '#7dff9a');
+    this.showTertib(this.scoring.obeyRedLight(), 'TERTIB');
   }
 
   // Nerobos lampu merah: tidak ada poin. Kalau ada polisi di pos, langsung ditilang.
@@ -241,8 +296,9 @@ export default class GameScene extends Phaser.Scene {
 
   caughtByEtle() {
     this.counters.etle++;
+    this.scoring.etleViolation();
     this.cameras.main.flash(220, 255, 255, 255);
-    this.floatText(CONFIG.width / 2, CONFIG.height / 2, 'TERTANGKAP ETLE  −20', '#ffd166', '26px');
+    this.floatText(CONFIG.width / 2, CONFIG.height / 2, `TERTANGKAP ETLE  −${CONFIG.scoring.etlePenalty}`, '#ffd166', '26px');
   }
 
   updateSpawning(dm, cruise) {
@@ -360,6 +416,8 @@ export default class GameScene extends Phaser.Scene {
         helmet: this.helmetChoice,
         seconds: Math.floor(this.elapsed),
         distance: Math.floor(this.distanceMeters),
+        score: this.scoring.total,
+        tertib: this.scoring.tertib,
         ...this.counters,
       });
     });

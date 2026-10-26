@@ -93,7 +93,11 @@ export default class TrafficLight extends Phaser.GameObjects.Container {
   updateCrossTraffic(dt, now) {
     const c = this.cfg.crossTraffic;
     const W = CONFIG.width;
-    if (this.state === 'red' && this.y > -40 && now >= this.nextCrossAt) {
+    // Kendaraan baru hanya muncul kalau sempat keluar dari perempatan sebelum lampu hijau,
+    // supaya pemain yang patuh tidak pernah tertabrak saat lampu sudah hijau.
+    const clearMs = ((W + c.width * 2) / c.speed) * 1000;
+    const clearsBeforeGreen = this.greenAt === null || now + clearMs < this.greenAt;
+    if (this.state === 'red' && this.y > -40 && now >= this.nextCrossAt && clearsBeforeGreen) {
       this.nextCrossAt = now + c.intervalMs;
       const fromLeft = this.crossFromLeft;
       this.crossFromLeft = !fromLeft;
